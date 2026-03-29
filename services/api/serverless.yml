@@ -1,6 +1,9 @@
 service: jobs-crawler-api
 frameworkVersion: "4"
 
+build:
+  esbuild: false
+
 plugins:
   - serverless-esbuild
   - serverless-offline
