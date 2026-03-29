@@ -1,0 +1,88 @@
+service: jobs-crawler-api
+frameworkVersion: "4"
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${env:AWS_REGION, 'us-east-1'}
+  environment:
+    JOBS_TABLE_NAME: ${env:JOBS_TABLE_NAME, 'JobListings'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:BatchWriteItem
+            - dynamodb:DeleteItem
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${env:JOBS_TABLE_NAME, 'JobListings'}
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${env:JOBS_TABLE_NAME, 'JobListings'}/index/*
+  apiGateway:
+    apiKeys:
+      - name: jobsCrawlerApiKey-${sls:stage}
+    usagePlan:
+      quota:
+        limit: 10
+        period: DAY
+      throttle:
+        burstLimit: 2
+        rateLimit: 1
+
+functions:
+  insertJobs:
+    handler: src/handlers/insertJobs.handler
+    events:
+      - http:
+          path: jobs
+          method: post
+          cors: true
+          private: true
+  searchJobs:
+    handler: src/handlers/searchJobs.handler
+    events:
+      - http:
+          path: jobs
+          method: get
+          cors: true
+          private: true
+  cleanupJobs:
+    handler: src/handlers/cleanupJobs.handler
+    events:
+      - schedule: rate(1 day)
+
+resources:
+  Resources:
+    JobListingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${env:JOBS_TABLE_NAME, 'JobListings'}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: jobId
+            AttributeType: S
+          - AttributeName: datePosted
+            AttributeType: S
+        KeySchema:
+          - AttributeName: jobId
+            KeyType: HASH
+          - AttributeName: datePosted
+            KeyType: RANGE
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node20
+    platform: node
+    concurrency: 10
+

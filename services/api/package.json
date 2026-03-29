@@ -1,0 +1,31 @@
+{
+  "name": "@jobs-crawler/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "serverless offline start --stage dev",
+    "deploy": "serverless deploy --stage dev",
+    "remove": "serverless remove --stage dev"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.883.0",
+    "@aws-sdk/lib-dynamodb": "^3.883.0",
+    "@jobs-crawler/shared": "1.0.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
+    "@types/node": "^22.14.1",
+    "serverless": "^4.14.3",
+    "serverless-esbuild": "^1.55.1",
+    "serverless-offline": "^14.3.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.0.7"
+  }
+}
+

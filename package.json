@@ -1,0 +1,21 @@
+{
+  "name": "jobs-crawler",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:web": "npm run dev -w @jobs-crawler/web",
+    "dev:api": "npm run dev -w @jobs-crawler/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

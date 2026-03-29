@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+.serverless/
+dist/
+coverage/
+*.log
+.env
+.env.local
+.env.production.local
+.env.development.local
+.env.example
+.DS_Store
+.worktrees/
+worktrees/
+deploy/
+*.tsbuildinfo
