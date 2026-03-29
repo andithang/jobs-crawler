@@ -1,22 +1,22 @@
-# Jobs Crawler
+﻿# Jobs Crawler
 
-An SSR Next.js job board backed by AWS API Gateway + Lambda + DynamoDB.
+A statically exported Next.js job board (Tailwind CSS) backed by AWS API Gateway + Lambda + DynamoDB.
 
 ## Overview
 
-Jobs are stored in DynamoDB and served through API Gateway-protected Lambda functions. The web app renders server-side and supports filtering by title, location, company, remote status, referring URL, and date posted.
+Jobs are stored in DynamoDB and served through API Gateway-protected Lambda functions. The web app is exported as static files for GitHub Pages and fetches jobs client-side from the public `GET /jobs` endpoint.
 
 ## Architecture
 
-- `apps/web`: Next.js SSR frontend with Tailwind CSS.
+- `apps/web`: Next.js static-export frontend with Tailwind CSS.
 - `services/api`: Serverless Framework service with Lambda handlers.
 - `packages/shared`: Shared TypeScript types used by frontend and backend.
 
 Data flow:
-1. User requests the SSR page in `apps/web`.
-2. Server-side code calls API Gateway `/jobs` with `x-api-key`.
-3. Lambda reads/writes DynamoDB table `JobListings`.
-4. UI renders DB-backed results responsively.
+1. User loads static site from GitHub Pages.
+2. Browser calls API Gateway `GET /jobs` (public read endpoint).
+3. Lambda queries DynamoDB `JobListings` and returns results.
+4. Protected `POST /jobs` remains API-key authenticated for inserts.
 
 ## Project Structure
 
@@ -74,14 +74,15 @@ npm run dev:web
 
 | Variable | Required | Used by | Purpose |
 | --- | --- | --- | --- |
+| `NEXT_PUBLIC_JOBS_API_BASE_URL` | Yes | Web | Public API base URL used by static web app |
+| `NEXT_PUBLIC_APP_NAME` | Optional | Web | UI label/environment branding |
 | `AWS_REGION` | Yes | API | AWS region for Lambda + DynamoDB |
 | `JOBS_TABLE_NAME` | Yes | API | DynamoDB table name (default `JobListings`) |
+| `CORS_ALLOW_ORIGIN` | Yes | API | Allowed browser origin for CORS (set to custom domain) |
 | `AWS_ACCESS_KEY_ID` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SECRET_ACCESS_KEY` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SESSION_TOKEN` | Optional | API | Temporary credentials support |
-| `JOBS_API_BASE_URL` | Yes | Web | Base URL for deployed API Gateway stage |
-| `JOBS_API_KEY` | Yes | Web | API Gateway key used only on server-side |
-| `NEXT_PUBLIC_APP_NAME` | Optional | Web | UI label/environment branding |
+| `SERVERLESS_ACCESS_KEY` | Yes (deploy) | API | Serverless Framework v4 authentication |
 
 ## API Contract
 
@@ -114,7 +115,8 @@ Base path: `/<stage>/jobs`
 
 ### `GET /jobs`
 
-- Auth: `x-api-key` required.
+- Auth: public (no API key).
+- CORS: allows `https://jobs-crawler.andithang.org`.
 - Query params:
   - `jobTitle`, `location`, `companyName`, `referringURL`: case-insensitive contains match.
   - `remoteStatus`: exact (`remote` | `offline` | `hybrid`).
@@ -135,7 +137,7 @@ Remove stack:
 npm run remove -w @jobs-crawler/api
 ```
 
-Build web app:
+Build web static export:
 
 ```bash
 npm run build -w @jobs-crawler/web
@@ -155,15 +157,17 @@ This repository uses three workflows on `main`:
 - Checks out `github.event.workflow_run.head_sha` so deploy always matches the exact CI-validated commit.
 - Deploys `services/api` to the `prod` stage via Serverless.
 
-3. `Next.js (Web)` (`.github/workflows/nextjs.yml`)
-- Runs on pushes and pull requests to `main` when `apps/web` or `packages/shared` changes.
-- Executes web-specific checks: lint, test, and build for `@jobs-crawler/web`.
+3. `Deploy Next.js to Pages` (`.github/workflows/nextjs.yml`)
+- Triggers only after successful `CI` on `main`.
+- Builds static export from `apps/web/out` using `NEXT_PUBLIC_JOBS_API_BASE_URL`.
+- Deploys artifact to GitHub Pages.
 
 ### Required GitHub configuration
 
 - Repository secret: `AWS_ROLE_TO_ASSUME` (IAM role ARN)
-- Repository secret: `AWS_REGION` (for example `us-east-1`)
+- Repository secret: `AWS_REGION` (for example `ap-southeast-1`)
 - Repository secret: `SERVERLESS_ACCESS_KEY` (Serverless Framework access key)
+- Repository variable: `NEXT_PUBLIC_JOBS_API_BASE_URL`
 
 ### AWS OIDC trust requirements
 
@@ -172,24 +176,17 @@ Configure the IAM role trust policy for GitHub OIDC with:
 - Audience: `sts.amazonaws.com`
 - Subject: `repo:andithang/jobs-crawler:ref:refs/heads/main`
 
-Example trust-policy condition values:
+## GitHub Pages Custom Domain
 
-```json
-{
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-  },
-  "StringLike": {
-    "token.actions.githubusercontent.com:sub": "repo:andithang/jobs-crawler:ref:refs/heads/main"
-  }
-}
-```
+- Domain: `jobs-crawler.andithang.org`
+- DNS target: `andithang.github.io`
+- `apps/web/public/CNAME` is included in exported artifact.
 
 ## Security and Rate Limiting
 
-- Both `/jobs` endpoints are private and require API key.
+- `POST /jobs` remains private and requires API key.
 - Usage plan quota is configured to `10 requests/day`.
-- Frontend keeps the API key server-side (`getServerSideProps` and API proxy route).
+- `GET /jobs` is public read-only for static web access.
 
 ## Docs Index
 

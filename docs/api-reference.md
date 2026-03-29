@@ -6,7 +6,8 @@
 
 ## Authentication
 
-All endpoints require `x-api-key`.
+- `POST /jobs`: requires `x-api-key`
+- `GET /jobs`: public read endpoint (no API key)
 
 ## Endpoints
 
@@ -49,6 +50,8 @@ Response (`200`):
 ### GET `/jobs`
 
 Search jobs with filters.
+
+CORS origin is restricted to `https://jobs-crawler.andithang.org`.
 
 Supported query params:
 

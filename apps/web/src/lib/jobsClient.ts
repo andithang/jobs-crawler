@@ -2,7 +2,6 @@ import type { JobSearchFilters, PaginatedJobs } from "@jobs-crawler/shared";
 
 export interface FetchJobsOptions {
   apiBaseUrl: string;
-  apiKey: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -52,8 +51,7 @@ export async function fetchJobsFromApi(
   const response = await fetchImpl(endpoint, {
     method: "GET",
     headers: {
-      "content-type": "application/json",
-      "x-api-key": options.apiKey
+      "content-type": "application/json"
     },
     cache: "no-store"
   });

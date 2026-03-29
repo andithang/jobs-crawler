@@ -10,10 +10,10 @@ npm run build -w @jobs-crawler/web
 
 ## Verify APIs
 
-1. Get API key from API Gateway stage/usage plan.
-2. Run `POST /jobs` with sample data.
-3. Run `GET /jobs` with and without filters.
-4. Confirm quota behavior (`10/day`) in API Gateway usage metrics.
+1. Get API key from API Gateway stage/usage plan (for `POST /jobs` only).
+2. Run `POST /jobs` with sample data and verify API-key protection.
+3. Run public `GET /jobs` with and without filters from `https://jobs-crawler.andithang.org`.
+4. Confirm quota behavior (`10/day`) still applies to private endpoints.
 
 ## Cleanup job verification
 

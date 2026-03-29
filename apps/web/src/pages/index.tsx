@@ -1,5 +1,4 @@
-import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
-import React from "react";
+﻿import React, { useEffect, useState } from "react";
 import type { JobRecord, JobSearchFilters } from "@jobs-crawler/shared";
 import { fetchJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
 
@@ -8,6 +7,7 @@ type PageProps = {
   totalCount: number;
   initialFilters: Partial<JobSearchFilters>;
   errorMessage?: string;
+  isLoading?: boolean;
 };
 
 function formatDateLabel(value: string): string {
@@ -31,17 +31,26 @@ function toDateInputValue(value?: string): string {
   return value.length >= 10 ? value.slice(0, 10) : value;
 }
 
+function parseFiltersFromLocation(): Partial<JobSearchFilters> {
+  const params = new URLSearchParams(window.location.search);
+
+  return normalizeFilterInput({
+    jobTitle: params.get("jobTitle") ?? undefined,
+    location: params.get("location") ?? undefined,
+    companyName: params.get("companyName") ?? undefined,
+    referringURL: params.get("referringURL") ?? undefined,
+    remoteStatus: params.get("remoteStatus") ?? undefined,
+    datePosted: params.get("datePosted") ?? undefined
+  });
+}
+
 export function JobsPageView({
   jobs,
   totalCount,
   initialFilters,
-  errorMessage
-}: {
-  jobs: JobRecord[];
-  totalCount: number;
-  initialFilters: Partial<JobSearchFilters>;
-  errorMessage?: string;
-}) {
+  errorMessage,
+  isLoading
+}: PageProps) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <section className="rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
@@ -135,9 +144,10 @@ export function JobsPageView({
           <p className="text-sm text-slate-600">{totalCount} matching jobs</p>
         </div>
 
+        {isLoading ? <p className="text-sm text-slate-600">Loading jobs...</p> : null}
         {errorMessage ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{errorMessage}</p> : null}
 
-        {jobs.length === 0 ? (
+        {!isLoading && jobs.length === 0 ? (
           <p className="text-sm text-slate-600">No jobs found for the selected filters.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -145,7 +155,7 @@ export function JobsPageView({
               <article key={`${job.jobId}-${job.datePosted}`} className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="text-lg font-semibold text-slate-900">{job.jobTitle}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  {job.companyName} â€¢ {job.location} â€¢ {job.remoteStatus}
+                  {job.companyName} - {job.location} - {job.remoteStatus}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">Posted: {formatDateLabel(job.datePosted)}</p>
                 <p className="mt-3 text-sm text-slate-700">{job.jobDescription}</p>
@@ -166,56 +176,51 @@ export function JobsPageView({
   );
 }
 
-export default function JobsPage({
-  jobs,
-  totalCount,
-  initialFilters,
-  errorMessage
-}: InferGetServerSidePropsType<typeof getServerSideProps>) {
+export default function JobsPage() {
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [initialFilters, setInitialFilters] = useState<Partial<JobSearchFilters>>({});
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadJobs() {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
+      const filters = parseFiltersFromLocation();
+      setInitialFilters(filters);
+
+      if (!apiBaseUrl) {
+        setJobs([]);
+        setTotalCount(0);
+        setErrorMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const result = await fetchJobsFromApi(filters, { apiBaseUrl });
+        setJobs(result.items);
+        setTotalCount(result.totalCount);
+        setErrorMessage(undefined);
+      } catch (error) {
+        setJobs([]);
+        setTotalCount(0);
+        setErrorMessage((error as Error).message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void loadJobs();
+  }, []);
+
   return (
-    <JobsPageView jobs={jobs} totalCount={totalCount} initialFilters={initialFilters} errorMessage={errorMessage} />
+    <JobsPageView
+      jobs={jobs}
+      totalCount={totalCount}
+      initialFilters={initialFilters}
+      errorMessage={errorMessage}
+      isLoading={isLoading}
+    />
   );
 }
-
-export const getServerSideProps: GetServerSideProps<PageProps> = async (context) => {
-  const apiBaseUrl = process.env.JOBS_API_BASE_URL;
-  const apiKey = process.env.JOBS_API_KEY;
-  const initialFilters = normalizeFilterInput(context.query);
-
-  if (!apiBaseUrl || !apiKey) {
-    return {
-      props: {
-        jobs: [],
-        totalCount: 0,
-        initialFilters,
-        errorMessage: "Server configuration is missing JOBS_API_BASE_URL or JOBS_API_KEY."
-      }
-    };
-  }
-
-  try {
-    const result = await fetchJobsFromApi(initialFilters, {
-      apiBaseUrl,
-      apiKey
-    });
-
-    return {
-      props: {
-        jobs: result.items,
-        totalCount: result.totalCount,
-        initialFilters
-      }
-    };
-  } catch (error) {
-    return {
-      props: {
-        jobs: [],
-        totalCount: 0,
-        initialFilters,
-        errorMessage: (error as Error).message
-      }
-    };
-  }
-};
-
-

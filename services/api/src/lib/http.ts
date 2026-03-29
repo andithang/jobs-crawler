@@ -3,7 +3,8 @@ import type { ApiError, ApiSuccess } from "@jobs-crawler/shared";
 
 const defaultHeaders = {
   "content-type": "application/json",
-  "access-control-allow-origin": "*"
+  "access-control-allow-origin": process.env.CORS_ALLOW_ORIGIN ?? "https://jobs-crawler.andithang.org",
+  vary: "Origin"
 };
 
 export function success<T>(statusCode: number, data: T): APIGatewayProxyResult {

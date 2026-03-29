@@ -14,7 +14,7 @@ describe("buildJobsQueryString", () => {
 });
 
 describe("fetchJobsFromApi", () => {
-  it("calls backend with API key header", async () => {
+  it("calls backend without API key header for public GET endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -32,7 +32,6 @@ describe("fetchJobsFromApi", () => {
       },
       {
         apiBaseUrl: "https://api.example.com/dev",
-        apiKey: "secret",
         fetchImpl: fetchMock
       }
     );
@@ -42,10 +41,11 @@ describe("fetchJobsFromApi", () => {
       "https://api.example.com/dev/jobs?jobTitle=node",
       expect.objectContaining({
         headers: expect.objectContaining({
-          "x-api-key": "secret"
+          "content-type": "application/json"
         })
       })
     );
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty("x-api-key");
     expect(result.items).toEqual([]);
   });
 });
