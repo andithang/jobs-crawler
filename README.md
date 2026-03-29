@@ -143,7 +143,7 @@ npm run build -w @jobs-crawler/web
 
 ## CI/CD (GitHub Actions)
 
-This repository uses two workflows on `main`:
+This repository uses three workflows on `main`:
 
 1. `CI` (`.github/workflows/ci.yml`)
 - Runs on pull requests to `main` and direct pushes to `main`.
@@ -155,10 +155,15 @@ This repository uses two workflows on `main`:
 - Checks out `github.event.workflow_run.head_sha` so deploy always matches the exact CI-validated commit.
 - Deploys `services/api` to the `prod` stage via Serverless.
 
+3. `Next.js (Web)` (`.github/workflows/nextjs.yml`)
+- Runs on pushes and pull requests to `main` when `apps/web` or `packages/shared` changes.
+- Executes web-specific checks: lint, test, and build for `@jobs-crawler/web`.
+
 ### Required GitHub configuration
 
 - Repository secret: `AWS_ROLE_TO_ASSUME` (IAM role ARN)
-- Repository variable: `AWS_REGION` (for example `us-east-1`)
+- Repository secret: `AWS_REGION` (for example `us-east-1`)
+- Repository secret: `SERVERLESS_ACCESS_KEY` (Serverless Framework access key)
 
 ### AWS OIDC trust requirements
 
