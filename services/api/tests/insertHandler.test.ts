@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { JobInput } from "@jobs-crawler/shared";
 import { buildInsertJobsHandler } from "../src/handlers/insertJobs";
 import { InMemoryJobRepository } from "./inMemoryRepository";
 
@@ -132,14 +133,14 @@ describe("POST /jobs handler", () => {
 
   it("returns 202 immediately when waitForCompletion is false", async () => {
     const repository = new InMemoryJobRepository();
-    let resolveCrawl: ((jobs: Array<Record<string, string>>) => void) | undefined;
+    let resolveCrawl: ((jobs: JobInput[]) => void) | undefined;
 
     const handler = buildInsertJobsHandler({
       repository,
       idGenerator: () => "async-id",
       crawler: {
         crawlJobs: async () =>
-          new Promise<Array<Record<string, string>>>((resolve) => {
+          new Promise<JobInput[]>((resolve) => {
             resolveCrawl = resolve;
           })
       }
