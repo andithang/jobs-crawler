@@ -170,11 +170,7 @@ export class GeminiJobCrawler implements JobCrawler {
               parts: [{ text: prompt }]
             }
           ],
-          tools: [{ google_search: {} }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0
-          }
+          tools: [{ google_search: {} }]
         })
       });
 
