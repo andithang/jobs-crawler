@@ -20,8 +20,9 @@ interface GeminiGenerateContentResponse {
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DEFAULT_MAX_RESULTS = 20;
+const DEFAULT_MAX_RESULTS = 50;
 const MAX_RESULTS_LIMIT = 50;
+const MAX_GENERATION_ATTEMPTS = 3;
 
 function getGeminiApiKey(): string {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -45,9 +46,22 @@ function buildPrompt(request: CrawlJobsRequest): string {
     `Search intent: ${request.crawlQuery}`,
     `Return up to ${maxResults} jobs.`,
     "Output strictly valid JSON with this shape and no markdown:",
+    "Do not prefix with labels like candidates.content.parts.text.",
     '{"jobs":[{"jobTitle":"string","companyName":"string","location":"string","referringURL":"https://...","jobDescription":"string","salary":"string","benefits":"string","remoteStatus":"remote|offline|hybrid","datePosted":"ISO-8601 string with timezone"}]}',
     "If salary or benefits are unavailable, set them to 'Not specified'.",
     "Only include unique jobs and provide direct listing URLs."
+  ].join("\n");
+}
+
+function buildRetryPrompt(request: CrawlJobsRequest, attempt: number): string {
+  if (attempt <= 1) {
+    return buildPrompt(request);
+  }
+
+  return [
+    buildPrompt(request),
+    "Your previous response was rejected because it was not valid JSON.",
+    "Return ONLY the JSON object. No prose, no labels, no markdown code fences."
   ].join("\n");
 }
 
@@ -72,12 +86,61 @@ function buildJsonCandidates(text: string): string[] {
   return [...new Set(candidates)];
 }
 
+function tryParseJsonCandidate(candidate: string): unknown {
+  const trimmed = candidate.trim();
+  const attempts = [
+    trimmed,
+    trimmed.includes('\\"') ? trimmed.replace(/\\"/g, '"') : undefined,
+    trimmed.includes("\\n") ? trimmed.replace(/\\n/g, "\n") : undefined,
+    trimmed.includes('\\"') && trimmed.includes("\\n")
+      ? trimmed.replace(/\\"/g, '"').replace(/\\n/g, "\n")
+      : undefined
+  ].filter((value): value is string => Boolean(value));
+
+  let lastError: unknown;
+  for (const attempt of [...new Set(attempts)]) {
+    try {
+      return JSON.parse(attempt);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+function extractJobsFromUnknown(value: unknown): JobInput[] | undefined {
+  if (value && typeof value === "object") {
+    const candidate = value as { jobs?: unknown };
+    if (Array.isArray(candidate.jobs)) {
+      return candidate.jobs as JobInput[];
+    }
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    for (const nestedCandidate of buildJsonCandidates(value)) {
+      try {
+        const parsedNested = tryParseJsonCandidate(nestedCandidate);
+        const nestedJobs = extractJobsFromUnknown(parsedNested);
+        if (nestedJobs) {
+          return nestedJobs;
+        }
+      } catch {
+        // Keep trying nested candidates.
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function parseJsonPayload(text: string): { jobs: JobInput[] } {
   for (const candidate of buildJsonCandidates(text)) {
     try {
-      const parsed = JSON.parse(candidate) as { jobs?: JobInput[] };
-      if (parsed.jobs && Array.isArray(parsed.jobs)) {
-        return { jobs: parsed.jobs };
+      const parsed = tryParseJsonCandidate(candidate);
+      const jobs = extractJobsFromUnknown(parsed);
+      if (jobs) {
+        return { jobs };
       }
     } catch {
       // Continue trying candidate slices until all are exhausted.
@@ -94,33 +157,57 @@ export class GeminiJobCrawler implements JobCrawler {
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent` +
       `?key=${encodeURIComponent(apiKey)}`;
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: buildPrompt(request) }]
+    const requestGeneration = async (prompt: string): Promise<string> => {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }]
+            }
+          ],
+          tools: [{ google_search: {} }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0
           }
-        ],
-        tools: [{ google_search: {} }]
-      })
-    });
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gemini request failed with status ${response.status}.`);
+      if (!response.ok) {
+        throw new Error(`Gemini request failed with status ${response.status}.`);
+      }
+
+      const payload = (await response.json()) as GeminiGenerateContentResponse;
+      const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
+      if (!text) {
+        throw new Error("Gemini returned an empty response.");
+      }
+
+      return text;
+    };
+
+    let lastParseError: unknown;
+    for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      const prompt = buildRetryPrompt(request, attempt);
+      const text = await requestGeneration(prompt);
+
+      try {
+        const { jobs } = parseJsonPayload(text);
+        return jobs;
+      } catch (error) {
+        lastParseError = error;
+      }
     }
 
-    const payload = (await response.json()) as GeminiGenerateContentResponse;
-    const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
-    if (!text) {
-      throw new Error("Gemini returned an empty response.");
-    }
-
-    const { jobs } = parseJsonPayload(text);
-    return jobs;
+    const lastErrorMessage =
+      lastParseError instanceof Error ? ` Last parse error: ${lastParseError.message}` : "";
+    throw new Error(
+      `Gemini produced invalid JSON output after ${MAX_GENERATION_ATTEMPTS} attempts.${lastErrorMessage}`
+    );
   }
 }
