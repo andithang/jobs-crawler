@@ -30,7 +30,55 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   const repository = deps?.repository ?? new DynamoDbJobRepository();
   const idGenerator = deps?.idGenerator ?? uuidv4;
   const crawler = deps?.crawler ?? new GeminiJobCrawler();
-  const defaultCrawlQuery = deps?.defaultCrawlQuery ?? process.env.DEFAULT_CRAWL_QUERY?.trim() ?? "";
+  const defaultCrawlQuery = deps?.defaultCrawlQuery ?? process.env.DEFAULT_CRAWL_QUERY?.trim() ?? `
+    You are a job data extraction engine for a DynamoDB ingestion pipeline.
+
+    TASK
+    Find real, currently active job listings on the public internet using web search for this intent:
+    "{{CRAWL_QUERY}}"
+
+    OUTPUT RULES (STRICT)
+    1) Return ONLY valid JSON.
+    2) Do NOT return markdown.
+    3) Do NOT return explanations or extra keys.
+    4) Top-level object must be exactly:
+    {
+      "jobs": [ ... ]
+    }
+    5) Each item in "jobs" must contain ALL fields below (no missing fields):
+    - jobTitle (string)
+    - companyName (string)
+    - location (string)
+    - referringURL (string, absolute https URL to original listing page)
+    - jobDescription (string)
+    - salary (string)
+    - benefits (string)
+    - remoteStatus (string enum: "remote" | "offline" | "hybrid")
+    - datePosted (string, ISO-8601 with timezone, e.g. "2026-03-30T00:00:00.000Z")
+
+    QUALITY + NORMALIZATION RULES
+    - Return at most {{MAX_RESULTS}} jobs.
+    - Include only unique jobs (dedupe by referringURL).
+    - Only include postings that appear to be real job listings (not blog posts, category pages, or search result pages).
+    - referringURL must be the direct job listing URL, not homepage.
+    - remoteStatus mapping:
+      - fully remote => "remote"
+      - on-site / in-office => "offline"
+      - hybrid => "hybrid"
+    - If salary is unavailable, set salary to "Not specified".
+    - If benefits are unavailable, set benefits to "Not specified".
+    - If jobDescription is long, summarize to 1-3 sentences while preserving key responsibilities.
+    - Prefer jobs posted recently; if exact posting date is not available, estimate conservatively and still return valid ISO-8601 with timezone.
+    - All strings must be non-empty and trimmed.
+
+    VALIDATION CHECK BEFORE FINALIZING
+    - Ensure JSON parses.
+    - Ensure every job has all required keys and correct enum/date/url formats.
+    - Ensure no null values.
+    - Ensure no duplicate referringURL.
+
+    Return final JSON now.
+  `;
 
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
