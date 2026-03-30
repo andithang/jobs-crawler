@@ -89,7 +89,7 @@ describe("POST /jobs handler", () => {
     expect(inserted[0]?.jobId).toBe("crawled-id");
   });
 
-  it("returns 400 when jobs[] and crawlQuery are both missing", async () => {
+  it("uses hardcoded default crawl query when jobs[] and crawlQuery are both missing", async () => {
     const repository = new InMemoryJobRepository();
     let crawlCalled = false;
 
@@ -99,7 +99,19 @@ describe("POST /jobs handler", () => {
       crawler: {
         crawlJobs: async () => {
           crawlCalled = true;
-          return [];
+          return [
+            {
+              jobTitle: "Platform Engineer",
+              companyName: "Fallback Co",
+              location: "Remote",
+              referringURL: "https://jobs.example.com/fallback-1",
+              jobDescription: "Maintain distributed systems.",
+              salary: "Not specified",
+              benefits: "Not specified",
+              remoteStatus: "remote",
+              datePosted: "2026-03-20T00:00:00.000Z"
+            }
+          ];
         }
       }
     });
@@ -108,12 +120,13 @@ describe("POST /jobs handler", () => {
       body: JSON.stringify({})
     } as never);
 
-    expect(response.statusCode).toBe(400);
-    const body = JSON.parse(response.body) as { error: { message: string } };
-    expect(body.error.message).toBe("Request body must include jobs[] or set a non-empty defaultCrawlQuery.");
-    expect(crawlCalled).toBe(false);
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { data: { insertedCount: number } };
+    expect(body.data.insertedCount).toBe(1);
+    expect(crawlCalled).toBe(true);
 
     const inserted = await repository.getAllJobs();
-    expect(inserted).toHaveLength(0);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.jobId).toBe("unused-id");
   });
 });

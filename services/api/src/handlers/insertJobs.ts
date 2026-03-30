@@ -87,7 +87,10 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
       let inputPayload: unknown = payload;
 
       if (!Array.isArray(body.jobs)) {
-        const crawlQuery = defaultCrawlQuery;
+        const crawlQuery =
+          typeof body.crawlQuery === "string" && body.crawlQuery.trim().length > 0
+            ? body.crawlQuery.trim()
+            : defaultCrawlQuery;
         if (!crawlQuery) {
           throw new Error(
             "Request body must include jobs[] or set a non-empty defaultCrawlQuery."
