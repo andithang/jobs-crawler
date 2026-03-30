@@ -88,4 +88,41 @@ describe("POST /jobs handler", () => {
     expect(inserted).toHaveLength(1);
     expect(inserted[0]?.jobId).toBe("crawled-id");
   });
+
+  it("crawls jobs with the configured default query when request body is empty", async () => {
+    const repository = new InMemoryJobRepository();
+
+    const handler = buildInsertJobsHandler({
+      repository,
+      idGenerator: () => "default-crawled-id",
+      defaultCrawlQuery: "software engineer remote united states",
+      crawler: {
+        crawlJobs: async () => [
+          {
+            jobTitle: "Fullstack Engineer",
+            companyName: "Default Query Co",
+            location: "United States",
+            referringURL: "https://jobs.example.com/fs-1",
+            jobDescription: "Build web applications.",
+            salary: "Not specified",
+            benefits: "Not specified",
+            remoteStatus: "remote",
+            datePosted: "2026-03-20T00:00:00.000Z"
+          }
+        ]
+      }
+    });
+
+    const response = await handler({
+      body: JSON.stringify({})
+    } as never);
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { data: { insertedCount: number } };
+    expect(body.data.insertedCount).toBe(1);
+
+    const inserted = await repository.getAllJobs();
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.jobId).toBe("default-crawled-id");
+  });
 });
