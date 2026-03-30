@@ -110,7 +110,7 @@ describe("POST /jobs handler", () => {
 
     expect(response.statusCode).toBe(400);
     const body = JSON.parse(response.body) as { error: { message: string } };
-    expect(body.error.message).toBe("Request body must include jobs[] or a non-empty crawlQuery.");
+    expect(body.error.message).toBe("Request body must include jobs[] or a non-empty defaultCrawlQuery.");
     expect(crawlCalled).toBe(false);
 
     const inserted = await repository.getAllJobs();
