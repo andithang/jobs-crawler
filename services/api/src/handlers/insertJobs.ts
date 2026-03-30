@@ -34,7 +34,7 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
     You are a job data extraction engine for a DynamoDB ingestion pipeline.
 
     TASK
-    Find real, currently active job listings on the public internet using web search for this intent:
+    Find real, currently active Frontend job listings in Hanoi, Vietnam on the public internet using web search for this intent:
     "{{CRAWL_QUERY}}"
 
     OUTPUT RULES (STRICT)
