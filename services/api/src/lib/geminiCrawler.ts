@@ -51,12 +51,40 @@ function buildPrompt(request: CrawlJobsRequest): string {
   ].join("\n");
 }
 
-function parseJsonPayload(text: string): { jobs: JobInput[] } {
-  const parsed = JSON.parse(text) as { jobs?: JobInput[] };
-  if (!parsed.jobs || !Array.isArray(parsed.jobs)) {
-    throw new Error("Gemini response did not contain a jobs array.");
+function buildJsonCandidates(text: string): string[] {
+  const trimmed = text.trim();
+  const candidates: string[] = [trimmed];
+
+  const codeBlockPattern = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  for (const match of trimmed.matchAll(codeBlockPattern)) {
+    const content = match[1]?.trim();
+    if (content) {
+      candidates.push(content);
+    }
   }
-  return { jobs: parsed.jobs };
+
+  const firstObjectStart = trimmed.indexOf("{");
+  const lastObjectEnd = trimmed.lastIndexOf("}");
+  if (firstObjectStart >= 0 && lastObjectEnd > firstObjectStart) {
+    candidates.push(trimmed.slice(firstObjectStart, lastObjectEnd + 1).trim());
+  }
+
+  return [...new Set(candidates)];
+}
+
+function parseJsonPayload(text: string): { jobs: JobInput[] } {
+  for (const candidate of buildJsonCandidates(text)) {
+    try {
+      const parsed = JSON.parse(candidate) as { jobs?: JobInput[] };
+      if (parsed.jobs && Array.isArray(parsed.jobs)) {
+        return { jobs: parsed.jobs };
+      }
+    } catch {
+      // Continue trying candidate slices until all are exhausted.
+    }
+  }
+
+  throw new Error("Gemini response was not valid JSON with a top-level jobs array.");
 }
 
 export class GeminiJobCrawler implements JobCrawler {
@@ -78,7 +106,10 @@ export class GeminiJobCrawler implements JobCrawler {
             parts: [{ text: buildPrompt(request) }]
           }
         ],
-        tools: [{ google_search: {} }]
+        tools: [{ google_search: {} }],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
       })
     });
 
