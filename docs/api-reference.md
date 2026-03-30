@@ -13,7 +13,11 @@
 
 ### POST `/jobs`
 
-Insert a list of jobs into DynamoDB.
+Insert jobs into DynamoDB.
+
+The endpoint supports two modes:
+- **Direct mode**: submit a `jobs` array.
+- **Crawl mode**: submit a `crawlQuery` string and Lambda will use Gemini `gemini-2.5-flash-lite` + `web_search` to crawl and format jobs before inserting.
 
 Request body:
 
@@ -44,6 +48,15 @@ Response (`200`):
     "insertedCount": 1,
     "failed": []
   }
+}
+```
+
+Crawl-mode request example:
+
+```json
+{
+  "crawlQuery": "backend engineer remote united states",
+  "maxResults": 20
 }
 ```
 

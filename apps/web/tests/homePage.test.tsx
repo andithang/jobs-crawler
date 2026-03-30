@@ -21,7 +21,17 @@ const sampleJobs: JobRecord[] = [
 
 describe("JobsPageView", () => {
   it("renders filters and job cards", () => {
-    render(<JobsPageView jobs={sampleJobs} totalCount={1} initialFilters={{}} />);
+    render(
+      <JobsPageView
+        jobs={sampleJobs}
+        totalCount={1}
+        initialFilters={{}}
+        crawlQuery="software engineer"
+        isInserting={false}
+        onCrawlQueryChange={() => {}}
+        onManualInsert={() => {}}
+      />
+    );
 
     expect(screen.getByRole("heading", { name: "Jobs Crawler" })).toBeInTheDocument();
     expect(screen.getByLabelText("Job title")).toBeInTheDocument();
@@ -29,7 +39,7 @@ describe("JobsPageView", () => {
     expect(screen.getByLabelText("Company")).toBeInTheDocument();
     expect(screen.getByLabelText("Referring URL")).toBeInTheDocument();
     expect(screen.getByLabelText("Date posted")) .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Insert jobs manually" })).toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
   });
 });
-
