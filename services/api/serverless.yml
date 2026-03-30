@@ -17,7 +17,6 @@ provider:
     JOBS_TABLE_NAME: ${env:JOBS_TABLE_NAME, 'JobListings'}
     CORS_ALLOW_ORIGIN: ${env:CORS_ALLOW_ORIGIN, 'https://jobs-crawler.andithang.org'}
     GEMINI_API_KEY: ${env:GEMINI_API_KEY, ''}
-    DEFAULT_CRAWL_QUERY: ${env:DEFAULT_CRAWL_QUERY, ""}
   iam:
     role:
       statements:

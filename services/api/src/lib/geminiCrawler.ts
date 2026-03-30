@@ -78,10 +78,7 @@ export class GeminiJobCrawler implements JobCrawler {
             parts: [{ text: buildPrompt(request) }]
           }
         ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        },
-        tools: [{ web_search: {} }]
+        tools: [{ google_search: {} }]
       })
     });
 
