@@ -40,37 +40,65 @@ export function buildJobsQueryString(filters: Partial<JobSearchFilters>): string
   return query.toString();
 }
 
+function buildJobsEndpoint(
+  apiBaseUrl: string,
+  filters: Partial<JobSearchFilters>,
+  cursor?: string,
+  limit = 100
+): string {
+  const query = new URLSearchParams(buildJobsQueryString(filters));
+  query.set("limit", String(limit));
+  if (cursor) {
+    query.set("cursor", cursor);
+  }
+
+  const queryString = query.toString();
+  return `${apiBaseUrl.replace(/\/$/, "")}/jobs${queryString ? `?${queryString}` : ""}`;
+}
+
 export async function fetchJobsFromApi(
   filters: Partial<JobSearchFilters>,
   options: FetchJobsOptions
 ): Promise<PaginatedJobs> {
-  const queryString = buildJobsQueryString(filters);
-  const endpoint = `${options.apiBaseUrl.replace(/\/$/, "")}/jobs${queryString ? `?${queryString}` : ""}`;
-
   const fetchImpl = options.fetchImpl ?? fetch;
-  const response = await fetchImpl(endpoint, {
-    method: "GET",
-    headers: {
-      "content-type": "application/json"
-    },
-    cache: "no-store"
-  });
+  let cursor: string | undefined;
+  let totalCount = 0;
+  const items: PaginatedJobs["items"] = [];
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch jobs. Status: ${response.status}`);
-  }
+  do {
+    const endpoint = buildJobsEndpoint(options.apiBaseUrl, filters, cursor, 100);
+    const response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: {
+        "content-type": "application/json"
+      },
+      cache: "no-store"
+    });
 
-  const payload = (await response.json()) as {
-    success: boolean;
-    data?: PaginatedJobs;
-    error?: { message?: string };
+    if (!response.ok) {
+      throw new Error(`Failed to fetch jobs. Status: ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      success: boolean;
+      data?: PaginatedJobs;
+      error?: { message?: string };
+    };
+
+    if (!payload.success || !payload.data) {
+      throw new Error(payload.error?.message ?? "Jobs API returned an invalid response.");
+    }
+
+    items.push(...payload.data.items);
+    totalCount = payload.data.totalCount;
+    cursor = payload.data.nextCursor;
+  } while (cursor);
+
+  return {
+    items,
+    totalCount,
+    nextCursor: undefined
   };
-
-  if (!payload.success || !payload.data) {
-    throw new Error(payload.error?.message ?? "Jobs API returned an invalid response.");
-  }
-
-  return payload.data;
 }
 
 export async function insertJobsFromApi(

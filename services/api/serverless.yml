@@ -56,6 +56,10 @@ functions:
               - Authorization
               - X-Amz-Security-Token
           private: false
+      - schedule:
+          rate: cron(0 1 * * ? *) # 08:00 GMT+7
+          input:
+            body: '{"waitForCompletion":false}'
   searchJobs:
     handler: src/handlers/searchJobs.handler
     events:
@@ -70,7 +74,8 @@ functions:
   cleanupJobs:
     handler: src/handlers/cleanupJobs.handler
     events:
-      - schedule: rate(1 day)
+      - schedule:
+          rate: cron(0 17 * * ? *) # 00:00 GMT+7
 
 resources:
   Resources:

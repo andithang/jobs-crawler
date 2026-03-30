@@ -27,6 +27,10 @@ describe("JobsPageView", () => {
         totalCount={1}
         initialFilters={{}}
         isInserting={false}
+        currentPage={1}
+        totalPages={1}
+        onPreviousPage={() => {}}
+        onNextPage={() => {}}
         onManualInsert={() => {}}
       />
     );

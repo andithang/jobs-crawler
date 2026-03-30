@@ -83,7 +83,12 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
       const payload = parseBody(event.body ?? null);
-      const body = (payload ?? {}) as { jobs?: unknown; crawlQuery?: unknown; maxResults?: unknown };
+      const body = (payload ?? {}) as {
+        jobs?: unknown;
+        crawlQuery?: unknown;
+        maxResults?: unknown;
+        waitForCompletion?: unknown;
+      };
       let inputPayload: unknown = payload;
 
       if (!Array.isArray(body.jobs)) {
@@ -98,6 +103,30 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
         }
 
         const maxResults = typeof body.maxResults === "number" ? body.maxResults : undefined;
+        const waitForCompletion = body.waitForCompletion !== false;
+
+        if (!waitForCompletion) {
+          void (async () => {
+            try {
+              const crawledJobs = await crawler.crawlJobs({ crawlQuery, maxResults });
+              const { validJobs } = parseInsertRequest({ jobs: crawledJobs });
+              const records: JobRecord[] = validJobs.map((job) => ({
+                ...job,
+                jobId: idGenerator()
+              }));
+
+              await repository.putJobs(records);
+            } catch (error) {
+              console.error("Async crawl job failed.", error);
+            }
+          })();
+
+          return success(202, {
+            accepted: true,
+            message: "Crawl started and will continue in the background."
+          });
+        }
+
         const crawledJobs = await crawler.crawlJobs({ crawlQuery, maxResults });
         inputPayload = { jobs: crawledJobs };
       }

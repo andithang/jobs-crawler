@@ -129,4 +129,54 @@ describe("POST /jobs handler", () => {
     expect(inserted).toHaveLength(1);
     expect(inserted[0]?.jobId).toBe("unused-id");
   });
+
+  it("returns 202 immediately when waitForCompletion is false", async () => {
+    const repository = new InMemoryJobRepository();
+    let resolveCrawl: ((jobs: Array<Record<string, string>>) => void) | undefined;
+
+    const handler = buildInsertJobsHandler({
+      repository,
+      idGenerator: () => "async-id",
+      crawler: {
+        crawlJobs: async () =>
+          new Promise<Array<Record<string, string>>>((resolve) => {
+            resolveCrawl = resolve;
+          })
+      }
+    });
+
+    const response = await handler({
+      body: JSON.stringify({
+        crawlQuery: "frontend software engineer jobs in hanoi vietnam",
+        waitForCompletion: false
+      })
+    } as never);
+
+    expect(response.statusCode).toBe(202);
+    const responseBody = JSON.parse(response.body) as { data: { accepted: boolean } };
+    expect(responseBody.data.accepted).toBe(true);
+
+    const beforeResolve = await repository.getAllJobs();
+    expect(beforeResolve).toHaveLength(0);
+
+    resolveCrawl?.([
+      {
+        jobTitle: "Frontend Engineer",
+        companyName: "Example Co",
+        location: "Hanoi, Vietnam",
+        referringURL: "https://jobs.example.com/hn-fe-1",
+        jobDescription: "Build frontend applications.",
+        salary: "Not specified",
+        benefits: "Not specified",
+        remoteStatus: "hybrid",
+        datePosted: "2026-03-30T00:00:00.000Z"
+      }
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const inserted = await repository.getAllJobs();
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.jobId).toBe("async-id");
+  });
 });

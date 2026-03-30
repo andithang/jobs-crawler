@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import type { JobRecord, JobSearchFilters } from "@jobs-crawler/shared";
 import { fetchJobsFromApi, insertJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
 
+const PAGE_SIZE = 20;
+
 type PageProps = {
   jobs: JobRecord[];
   totalCount: number;
@@ -11,6 +13,10 @@ type PageProps = {
   isInserting: boolean;
   insertStatusMessage?: string;
   onManualInsert: () => void;
+  currentPage: number;
+  totalPages: number;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
 };
 
 function formatDateLabel(value: string): string {
@@ -55,8 +61,15 @@ export function JobsPageView({
   isLoading,
   isInserting,
   insertStatusMessage,
-  onManualInsert
+  onManualInsert,
+  currentPage,
+  totalPages,
+  onPreviousPage,
+  onNextPage
 }: PageProps) {
+  const startIndex = jobs.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIndex = jobs.length === 0 ? 0 : startIndex + jobs.length - 1;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <section className="rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
@@ -165,7 +178,9 @@ export function JobsPageView({
       <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">Results</h2>
-          <p className="text-sm text-slate-600">{totalCount} matching jobs</p>
+          <p className="text-sm text-slate-600">
+            {startIndex}-{endIndex} of {totalCount} matching jobs
+          </p>
         </div>
 
         {isLoading ? <p className="text-sm text-slate-600">Loading jobs...</p> : null}
@@ -195,6 +210,30 @@ export function JobsPageView({
             ))}
           </div>
         )}
+
+        {!isLoading && totalCount > 0 ? (
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onPreviousPage}
+              disabled={currentPage <= 1}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <p className="text-sm text-slate-600">
+              Page {currentPage} of {totalPages}
+            </p>
+            <button
+              type="button"
+              onClick={onNextPage}
+              disabled={currentPage >= totalPages}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
       </section>
     </main>
   );
@@ -208,6 +247,7 @@ export default function JobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [insertStatusMessage, setInsertStatusMessage] = useState<string | undefined>();
   const [isInserting, setIsInserting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadJobs() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
@@ -226,10 +266,12 @@ export default function JobsPage() {
       const result = await fetchJobsFromApi(filters, { apiBaseUrl });
       setJobs(result.items);
       setTotalCount(result.totalCount);
+      setCurrentPage(1);
       setErrorMessage(undefined);
     } catch (error) {
       setJobs([]);
       setTotalCount(0);
+      setCurrentPage(1);
       setErrorMessage((error as Error).message);
     } finally {
       setIsLoading(false);
@@ -263,15 +305,22 @@ export default function JobsPage() {
     }
   }
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const paginatedJobs = jobs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <JobsPageView
-      jobs={jobs}
+      jobs={paginatedJobs}
       totalCount={totalCount}
       initialFilters={initialFilters}
       errorMessage={errorMessage}
       isLoading={isLoading}
       isInserting={isInserting}
       insertStatusMessage={insertStatusMessage}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
+      onNextPage={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
       onManualInsert={() => {
         void handleManualInsert();
       }}
