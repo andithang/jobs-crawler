@@ -30,7 +30,7 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   const repository = deps?.repository ?? new DynamoDbJobRepository();
   const idGenerator = deps?.idGenerator ?? uuidv4;
   const crawler = deps?.crawler ?? new GeminiJobCrawler();
-  const defaultCrawlQuery = deps?.defaultCrawlQuery ?? process.env.DEFAULT_CRAWL_QUERY?.trim() ?? `
+  const defaultCrawlQuery = `
     You are a job data extraction engine for a DynamoDB ingestion pipeline.
 
     TASK
