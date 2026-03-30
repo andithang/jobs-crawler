@@ -79,10 +79,12 @@ npm run dev:web
 | `AWS_REGION` | Yes | API | AWS region for Lambda + DynamoDB |
 | `JOBS_TABLE_NAME` | Yes | API | DynamoDB table name (default `JobListings`) |
 | `CORS_ALLOW_ORIGIN` | Yes | API | Allowed browser origin for CORS (set to custom domain) |
+| `GEMINI_API_KEY` | Yes (for crawl mode) | API | Gemini API key used by `POST /jobs` crawl mode (`gemini-2.5-flash-lite`) |
 | `AWS_ACCESS_KEY_ID` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SECRET_ACCESS_KEY` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SESSION_TOKEN` | Optional | API | Temporary credentials support |
 | `SERVERLESS_ACCESS_KEY` | Yes (deploy) | API | Serverless Framework v4 authentication |
+| `NEXT_PUBLIC_JOBS_API_KEY` | Yes (manual insert button) | Web | API key sent from browser for manual `POST /jobs` trigger |
 
 ## API Contract
 
@@ -91,7 +93,7 @@ Base path: `/<stage>/jobs`
 ### `POST /jobs`
 
 - Auth: `x-api-key` required.
-- Body:
+- Body (direct mode):
 
 ```json
 {
@@ -108,6 +110,15 @@ Base path: `/<stage>/jobs`
       "datePosted": "2026-03-20T00:00:00.000Z"
     }
   ]
+}
+```
+
+- Body (crawl mode):
+
+```json
+{
+  "crawlQuery": "backend engineer remote united states",
+  "maxResults": 20
 }
 ```
 
@@ -167,6 +178,7 @@ This repository uses three workflows on `main`:
 - Repository secret: `AWS_ROLE_TO_ASSUME` (IAM role ARN)
 - Repository secret: `AWS_REGION` (for example `ap-southeast-1`)
 - Repository secret: `SERVERLESS_ACCESS_KEY` (Serverless Framework access key)
+- Repository secret: `GEMINI_API_KEY` (Gemini API key for crawl mode in Lambda)
 - Repository variable: `NEXT_PUBLIC_JOBS_API_BASE_URL`
 
 ### AWS OIDC trust requirements

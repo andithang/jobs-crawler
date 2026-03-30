@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildJobsQueryString, fetchJobsFromApi } from "../src/lib/jobsClient";
+import { buildJobsQueryString, fetchJobsFromApi, insertJobsFromApi } from "../src/lib/jobsClient";
 
 describe("buildJobsQueryString", () => {
   it("serializes non-empty filters", () => {
@@ -50,3 +50,35 @@ describe("fetchJobsFromApi", () => {
   });
 });
 
+describe("insertJobsFromApi", () => {
+  it("calls backend with x-api-key and crawlQuery payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          insertedCount: 3,
+          failed: []
+        }
+      })
+    });
+
+    const result = await insertJobsFromApi("backend engineer remote", {
+      apiBaseUrl: "https://api.example.com/dev",
+      apiKey: "secret-key",
+      fetchImpl: fetchMock
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.com/dev/jobs",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "content-type": "application/json",
+          "x-api-key": "secret-key"
+        })
+      })
+    );
+    expect(result.insertedCount).toBe(3);
+  });
+});

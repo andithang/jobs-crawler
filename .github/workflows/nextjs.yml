@@ -50,6 +50,7 @@ jobs:
       - name: Build static web export
         env:
           NEXT_PUBLIC_JOBS_API_BASE_URL: ${{ vars.NEXT_PUBLIC_JOBS_API_BASE_URL || secrets.NEXT_PUBLIC_JOBS_API_BASE_URL }}
+          NEXT_PUBLIC_JOBS_API_KEY: ${{ secrets.NEXT_PUBLIC_JOBS_API_KEY }}
         run: npm run build -w @jobs-crawler/web
 
       - name: Upload Pages artifact

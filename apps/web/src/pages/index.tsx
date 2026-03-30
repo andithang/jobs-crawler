@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { JobRecord, JobSearchFilters } from "@jobs-crawler/shared";
-import { fetchJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
+import { fetchJobsFromApi, insertJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
 
 type PageProps = {
   jobs: JobRecord[];
@@ -8,6 +8,11 @@ type PageProps = {
   initialFilters: Partial<JobSearchFilters>;
   errorMessage?: string;
   isLoading?: boolean;
+  crawlQuery: string;
+  isInserting: boolean;
+  insertStatusMessage?: string;
+  onCrawlQueryChange: (value: string) => void;
+  onManualInsert: () => void;
 };
 
 function formatDateLabel(value: string): string {
@@ -49,7 +54,12 @@ export function JobsPageView({
   totalCount,
   initialFilters,
   errorMessage,
-  isLoading
+  isLoading,
+  crawlQuery,
+  isInserting,
+  insertStatusMessage,
+  onCrawlQueryChange,
+  onManualInsert
 }: PageProps) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -139,6 +149,28 @@ export function JobsPageView({
       </section>
 
       <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
+        <h2 className="text-lg font-semibold text-slate-900">Manual jobs crawl</h2>
+        <p className="mt-1 text-sm text-slate-600">Trigger Gemini crawl and insert jobs into DynamoDB.</p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
+          <input
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            value={crawlQuery}
+            onChange={(event) => onCrawlQueryChange(event.target.value)}
+            placeholder="e.g. backend engineer remote united states"
+          />
+          <button
+            type="button"
+            onClick={onManualInsert}
+            disabled={isInserting}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isInserting ? "Inserting..." : "Insert jobs manually"}
+          </button>
+        </div>
+        {insertStatusMessage ? <p className="mt-2 text-sm text-slate-700">{insertStatusMessage}</p> : null}
+      </section>
+
+      <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">Results</h2>
           <p className="text-sm text-slate-600">{totalCount} matching jobs</p>
@@ -182,37 +214,68 @@ export default function JobsPage() {
   const [initialFilters, setInitialFilters] = useState<Partial<JobSearchFilters>>({});
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [crawlQuery, setCrawlQuery] = useState("software engineer remote united states");
+  const [insertStatusMessage, setInsertStatusMessage] = useState<string | undefined>();
+  const [isInserting, setIsInserting] = useState(false);
 
-  useEffect(() => {
-    async function loadJobs() {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
-      const filters = parseFiltersFromLocation();
-      setInitialFilters(filters);
+  async function loadJobs() {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
+    const filters = parseFiltersFromLocation();
+    setInitialFilters(filters);
 
-      if (!apiBaseUrl) {
-        setJobs([]);
-        setTotalCount(0);
-        setErrorMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const result = await fetchJobsFromApi(filters, { apiBaseUrl });
-        setJobs(result.items);
-        setTotalCount(result.totalCount);
-        setErrorMessage(undefined);
-      } catch (error) {
-        setJobs([]);
-        setTotalCount(0);
-        setErrorMessage((error as Error).message);
-      } finally {
-        setIsLoading(false);
-      }
+    if (!apiBaseUrl) {
+      setJobs([]);
+      setTotalCount(0);
+      setErrorMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
+      setIsLoading(false);
+      return;
     }
 
+    try {
+      const result = await fetchJobsFromApi(filters, { apiBaseUrl });
+      setJobs(result.items);
+      setTotalCount(result.totalCount);
+      setErrorMessage(undefined);
+    } catch (error) {
+      setJobs([]);
+      setTotalCount(0);
+      setErrorMessage((error as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
     void loadJobs();
   }, []);
+
+  async function handleManualInsert() {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
+    const apiKey = process.env.NEXT_PUBLIC_JOBS_API_KEY;
+    if (!apiBaseUrl) {
+      setInsertStatusMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
+      return;
+    }
+    if (!apiKey) {
+      setInsertStatusMessage("Missing NEXT_PUBLIC_JOBS_API_KEY.");
+      return;
+    }
+
+    setIsInserting(true);
+    setInsertStatusMessage(undefined);
+    setIsLoading(true);
+
+    try {
+      const result = await insertJobsFromApi(crawlQuery, { apiBaseUrl, apiKey });
+      setInsertStatusMessage(`Inserted ${result.insertedCount} jobs. ${result.failed.length} failed.`);
+      await loadJobs();
+    } catch (error) {
+      setInsertStatusMessage((error as Error).message);
+    } finally {
+      setIsInserting(false);
+      setIsLoading(false);
+    }
+  }
 
   return (
     <JobsPageView
@@ -221,6 +284,13 @@ export default function JobsPage() {
       initialFilters={initialFilters}
       errorMessage={errorMessage}
       isLoading={isLoading}
+      crawlQuery={crawlQuery}
+      isInserting={isInserting}
+      insertStatusMessage={insertStatusMessage}
+      onCrawlQueryChange={setCrawlQuery}
+      onManualInsert={() => {
+        void handleManualInsert();
+      }}
     />
   );
 }

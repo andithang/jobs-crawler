@@ -3,12 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 import type { JobRecord } from "@jobs-crawler/shared";
 import type { JobRepository } from "../lib/repository";
 import { DynamoDbJobRepository } from "../lib/dynamodbRepository";
+import { GeminiJobCrawler, type JobCrawler } from "../lib/geminiCrawler";
 import { failure, success } from "../lib/http";
 import { parseInsertRequest } from "../lib/validation";
 
 interface Dependencies {
   repository: JobRepository;
   idGenerator: () => string;
+  crawler: JobCrawler;
 }
 
 function parseBody(body: string | null): unknown {
@@ -26,11 +28,26 @@ function parseBody(body: string | null): unknown {
 export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   const repository = deps?.repository ?? new DynamoDbJobRepository();
   const idGenerator = deps?.idGenerator ?? uuidv4;
+  const crawler = deps?.crawler ?? new GeminiJobCrawler();
 
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
       const payload = parseBody(event.body ?? null);
-      const { validJobs, failed } = parseInsertRequest(payload);
+      const body = (payload ?? {}) as { jobs?: unknown; crawlQuery?: unknown; maxResults?: unknown };
+      let inputPayload: unknown = payload;
+
+      if (!Array.isArray(body.jobs)) {
+        const crawlQuery = typeof body.crawlQuery === "string" ? body.crawlQuery.trim() : "";
+        if (!crawlQuery) {
+          throw new Error("Request body must include either jobs[] or a non-empty crawlQuery.");
+        }
+
+        const maxResults = typeof body.maxResults === "number" ? body.maxResults : undefined;
+        const crawledJobs = await crawler.crawlJobs({ crawlQuery, maxResults });
+        inputPayload = { jobs: crawledJobs };
+      }
+
+      const { validJobs, failed } = parseInsertRequest(inputPayload);
 
       const records: JobRecord[] = validJobs.map((job) => ({
         ...job,
@@ -50,4 +67,3 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
 }
 
 export const handler = buildInsertJobsHandler();
-

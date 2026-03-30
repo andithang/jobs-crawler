@@ -5,6 +5,8 @@
 - Trigger: `POST /jobs`
 - Responsibilities:
   - Parse request JSON.
+  - Accept either direct `jobs[]` payload or `crawlQuery`.
+  - When `crawlQuery` is provided, call Gemini `gemini-2.5-flash-lite` with `web_search` and require JSON output.
   - Validate each job payload.
   - Normalize `remoteStatus` to lowercase enum.
   - Generate `jobId`.

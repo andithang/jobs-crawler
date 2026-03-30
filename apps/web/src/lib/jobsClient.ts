@@ -5,6 +5,10 @@ export interface FetchJobsOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface InsertJobsOptions extends FetchJobsOptions {
+  apiKey: string;
+}
+
 function getStringValue(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -73,3 +77,41 @@ export async function fetchJobsFromApi(
   return payload.data;
 }
 
+export async function insertJobsFromApi(
+  crawlQuery: string,
+  options: InsertJobsOptions
+): Promise<{ insertedCount: number; failed: Array<{ index: number; reason: string }> }> {
+  const endpoint = `${options.apiBaseUrl.replace(/\/$/, "")}/jobs`;
+  const query = crawlQuery.trim();
+  if (!query) {
+    throw new Error("Crawl query cannot be empty.");
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const response = await fetchImpl(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": options.apiKey
+    },
+    body: JSON.stringify({
+      crawlQuery: query
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to insert jobs. Status: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    success: boolean;
+    data?: { insertedCount: number; failed: Array<{ index: number; reason: string }> };
+    error?: { message?: string };
+  };
+
+  if (!payload.success || !payload.data) {
+    throw new Error(payload.error?.message ?? "Insert jobs API returned an invalid response.");
+  }
+
+  return payload.data;
+}
