@@ -10,16 +10,15 @@ npm run build -w @jobs-crawler/web
 
 ## Verify APIs
 
-1. Get API key from API Gateway stage/usage plan (for `POST /jobs` only).
-2. Run `POST /jobs` with sample data and verify API-key protection.
-3. Run public `GET /jobs` with and without filters from `https://jobs-crawler.andithang.org`.
-4. Confirm quota behavior (`10/day`) still applies to private endpoints.
+1. Run public `GET /jobs` with and without filters from `https://jobs-crawler.andithang.org`.
+2. Confirm the response includes expected pagination metadata (`totalCount`, `nextCursor`).
 
-## Cleanup job verification
+## Scheduled job verification
 
-1. Insert records older than 7 days.
-2. Invoke `cleanupJobs` manually from Lambda console.
-3. Confirm old records are removed from DynamoDB.
+1. Trigger `insertJobs` from EventBridge or Lambda console and verify new records are inserted.
+2. Insert records older than 7 days.
+3. Trigger `cleanupJobs` from EventBridge or Lambda console.
+4. Confirm old records are removed from DynamoDB.
 
 ## Rollback
 

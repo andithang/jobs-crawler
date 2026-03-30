@@ -2,12 +2,10 @@
 
 ## `insertJobs`
 
-- Trigger: `POST /jobs`
+- Trigger: EventBridge schedule (`08:00 GMT+7` daily)
 - Responsibilities:
-  - Parse request JSON.
-  - Accept either direct `jobs[]` payload or `crawlQuery`.
-  - When `crawlQuery` is provided, call Gemini `gemini-2.5-flash-lite` with `web_search` and require JSON output.
-  - Validate each job payload.
+  - Call Gemini `gemini-2.5-flash-lite` with `web_search` to crawl and format jobs.
+  - Validate each crawled job payload.
   - Normalize `remoteStatus` to lowercase enum.
   - Generate `jobId`.
   - Batch insert valid jobs into DynamoDB.
@@ -26,7 +24,7 @@
 
 ## `cleanupJobs`
 
-- Trigger: CloudWatch/EventBridge schedule `rate(1 day)`
+- Trigger: EventBridge schedule (`00:00 GMT+7` daily)
 - Responsibilities:
   - Load all jobs.
   - Select entries older than 7 days.

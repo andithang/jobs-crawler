@@ -100,34 +100,3 @@ export async function fetchJobsFromApi(
     nextCursor: undefined
   };
 }
-
-export async function insertJobsFromApi(
-  options: FetchJobsOptions
-): Promise<{ insertedCount: number; failed: Array<{ index: number; reason: string }> }> {
-  const endpoint = `${options.apiBaseUrl.replace(/\/$/, "")}/jobs`;
-
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const response = await fetchImpl(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({})
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to insert jobs. Status: ${response.status}`);
-  }
-
-  const payload = (await response.json()) as {
-    success: boolean;
-    data?: { insertedCount: number; failed: Array<{ index: number; reason: string }> };
-    error?: { message?: string };
-  };
-
-  if (!payload.success || !payload.data) {
-    throw new Error(payload.error?.message ?? "Insert jobs API returned an invalid response.");
-  }
-
-  return payload.data;
-}

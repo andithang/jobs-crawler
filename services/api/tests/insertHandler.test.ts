@@ -1,183 +1,108 @@
 import { describe, expect, it } from "vitest";
-import type { JobInput } from "@jobs-crawler/shared";
 import { buildInsertJobsHandler } from "../src/handlers/insertJobs";
 import { InMemoryJobRepository } from "./inMemoryRepository";
 
-describe("POST /jobs handler", () => {
-  it("inserts valid jobs and reports failed items", async () => {
+describe("insert jobs scheduled handler", () => {
+  it("crawls and inserts valid jobs while reporting failed items", async () => {
     const repository = new InMemoryJobRepository();
+    let receivedQuery: string | undefined;
+    let receivedMaxResults: number | undefined;
 
     const handler = buildInsertJobsHandler({
       repository,
-      idGenerator: () => "generated-id"
-    });
-
-    const response = await handler({
-      body: JSON.stringify({
-        jobs: [
-          {
-            jobTitle: "Backend Engineer",
-            companyName: "Acme",
-            location: "Remote",
-            referringURL: "https://jobs.example.com/10",
-            jobDescription: "API work",
-            salary: "$100k",
-            benefits: "Health",
-            remoteStatus: "remote",
-            datePosted: "2026-03-20T00:00:00.000Z"
-          },
-          {
-            jobTitle: "",
-            companyName: "Broken",
-            location: "Remote",
-            referringURL: "invalid",
-            jobDescription: "",
-            salary: "",
-            benefits: "",
-            remoteStatus: "remote",
-            datePosted: "bad"
-          }
-        ]
-      })
-    } as never);
-
-    expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { data: { insertedCount: number; failed: Array<{ index: number }> } };
-
-    expect(body.data.insertedCount).toBe(1);
-    expect(body.data.failed).toHaveLength(1);
-
-    const inserted = await repository.getAllJobs();
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]?.jobId).toBe("generated-id");
-  });
-
-  it("crawls jobs with Gemini when crawlQuery is provided", async () => {
-    const repository = new InMemoryJobRepository();
-
-    const handler = buildInsertJobsHandler({
-      repository,
-      idGenerator: () => "crawled-id",
+      idGenerator: () => "generated-id",
+      defaultCrawlQuery: "frontend jobs in hanoi vietnam",
+      maxResults: 50,
       crawler: {
-        crawlJobs: async () => [
-          {
-            jobTitle: "ML Engineer",
-            companyName: "Example Co",
-            location: "United States",
-            referringURL: "https://jobs.example.com/ml-1",
-            jobDescription: "Work on LLM pipelines.",
-            salary: "Not specified",
-            benefits: "Not specified",
-            remoteStatus: "remote",
-            datePosted: "2026-03-20T00:00:00.000Z"
-          }
-        ]
-      }
-    });
+        crawlJobs: async ({ crawlQuery, maxResults }) => {
+          receivedQuery = crawlQuery;
+          receivedMaxResults = maxResults;
 
-    const response = await handler({
-      body: JSON.stringify({
-        crawlQuery: "machine learning engineer remote united states"
-      })
-    } as never);
-
-    expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { data: { insertedCount: number } };
-    expect(body.data.insertedCount).toBe(1);
-
-    const inserted = await repository.getAllJobs();
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]?.jobId).toBe("crawled-id");
-  });
-
-  it("uses hardcoded default crawl query when jobs[] and crawlQuery are both missing", async () => {
-    const repository = new InMemoryJobRepository();
-    let crawlCalled = false;
-
-    const handler = buildInsertJobsHandler({
-      repository,
-      idGenerator: () => "unused-id",
-      crawler: {
-        crawlJobs: async () => {
-          crawlCalled = true;
           return [
             {
-              jobTitle: "Platform Engineer",
-              companyName: "Fallback Co",
-              location: "Remote",
-              referringURL: "https://jobs.example.com/fallback-1",
-              jobDescription: "Maintain distributed systems.",
-              salary: "Not specified",
-              benefits: "Not specified",
+              jobTitle: "Frontend Engineer",
+              companyName: "Acme",
+              location: "Hanoi, Vietnam",
+              referringURL: "https://jobs.example.com/fe-1",
+              jobDescription: "Build frontend apps.",
+              salary: "$1200",
+              benefits: "Health",
+              remoteStatus: "hybrid",
+              datePosted: "2026-03-30T00:00:00.000Z"
+            },
+            {
+              jobTitle: "",
+              companyName: "Broken",
+              location: "Hanoi, Vietnam",
+              referringURL: "invalid-url",
+              jobDescription: "",
+              salary: "",
+              benefits: "",
               remoteStatus: "remote",
-              datePosted: "2026-03-20T00:00:00.000Z"
+              datePosted: "bad-date"
             }
           ];
         }
       }
     });
 
-    const response = await handler({
-      body: JSON.stringify({})
-    } as never);
+    const response = await handler({} as never);
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { data: { insertedCount: number } };
+    const body = JSON.parse(response.body) as {
+      data: { insertedCount: number; failed: Array<{ index: number }> };
+    };
     expect(body.data.insertedCount).toBe(1);
-    expect(crawlCalled).toBe(true);
+    expect(body.data.failed).toHaveLength(1);
+    expect(receivedQuery).toBe("frontend jobs in hanoi vietnam");
+    expect(receivedMaxResults).toBe(50);
 
     const inserted = await repository.getAllJobs();
     expect(inserted).toHaveLength(1);
-    expect(inserted[0]?.jobId).toBe("unused-id");
+    expect(inserted[0]?.jobId).toBe("generated-id");
   });
 
-  it("returns 202 immediately when waitForCompletion is false", async () => {
+  it("returns insertedCount 0 when crawler returns no jobs", async () => {
     const repository = new InMemoryJobRepository();
-    let resolveCrawl: ((jobs: JobInput[]) => void) | undefined;
 
     const handler = buildInsertJobsHandler({
       repository,
-      idGenerator: () => "async-id",
       crawler: {
-        crawlJobs: async () =>
-          new Promise<JobInput[]>((resolve) => {
-            resolveCrawl = resolve;
-          })
+        crawlJobs: async () => []
       }
     });
 
-    const response = await handler({
-      body: JSON.stringify({
-        crawlQuery: "frontend software engineer jobs in hanoi vietnam",
-        waitForCompletion: false
-      })
-    } as never);
+    const response = await handler({} as never);
 
-    expect(response.statusCode).toBe(202);
-    const responseBody = JSON.parse(response.body) as { data: { accepted: boolean } };
-    expect(responseBody.data.accepted).toBe(true);
-
-    const beforeResolve = await repository.getAllJobs();
-    expect(beforeResolve).toHaveLength(0);
-
-    resolveCrawl?.([
-      {
-        jobTitle: "Frontend Engineer",
-        companyName: "Example Co",
-        location: "Hanoi, Vietnam",
-        referringURL: "https://jobs.example.com/hn-fe-1",
-        jobDescription: "Build frontend applications.",
-        salary: "Not specified",
-        benefits: "Not specified",
-        remoteStatus: "hybrid",
-        datePosted: "2026-03-30T00:00:00.000Z"
-      }
-    ]);
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      data: { insertedCount: number; failed: Array<{ index: number; reason: string }> };
+    };
+    expect(body.data.insertedCount).toBe(0);
+    expect(body.data.failed).toEqual([]);
 
     const inserted = await repository.getAllJobs();
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]?.jobId).toBe("async-id");
+    expect(inserted).toHaveLength(0);
+  });
+
+  it("returns 500 when crawl fails", async () => {
+    const repository = new InMemoryJobRepository();
+
+    const handler = buildInsertJobsHandler({
+      repository,
+      crawler: {
+        crawlJobs: async () => {
+          throw new Error("Gemini unavailable");
+        }
+      }
+    });
+
+    const response = await handler({} as never);
+
+    expect(response.statusCode).toBe(500);
+    const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("INSERT_FAILED");
+    expect(body.error.message).toContain("Gemini unavailable");
   });
 });
+

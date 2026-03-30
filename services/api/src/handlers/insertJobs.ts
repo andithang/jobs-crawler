@@ -1,4 +1,4 @@
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import type { APIGatewayProxyResult, EventBridgeEvent } from "aws-lambda";
 import { v4 as uuidv4 } from "uuid";
 import type { JobRecord } from "@jobs-crawler/shared";
 import type { JobRepository } from "../lib/repository";
@@ -12,25 +12,16 @@ interface Dependencies {
   idGenerator: () => string;
   crawler: JobCrawler;
   defaultCrawlQuery?: string;
-}
-
-function parseBody(body: string | null): unknown {
-  if (!body) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(body);
-  } catch {
-    throw new Error("Request body must be valid JSON.");
-  }
+  maxResults?: number;
 }
 
 export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   const repository = deps?.repository ?? new DynamoDbJobRepository();
   const idGenerator = deps?.idGenerator ?? uuidv4;
   const crawler = deps?.crawler ?? new GeminiJobCrawler();
-  const defaultCrawlQuery = `
+  const defaultCrawlQuery =
+    deps?.defaultCrawlQuery?.trim() ||
+    `
     You are a job data extraction engine for a DynamoDB ingestion pipeline.
 
     TASK
@@ -79,59 +70,19 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
 
     Return final JSON now.
   `;
+  const maxResults = typeof deps?.maxResults === "number" ? deps.maxResults : undefined;
 
-  return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  return async (_event: EventBridgeEvent<string, unknown>): Promise<APIGatewayProxyResult> => {
     try {
-      const payload = parseBody(event.body ?? null);
-      const body = (payload ?? {}) as {
-        jobs?: unknown;
-        crawlQuery?: unknown;
-        maxResults?: unknown;
-        waitForCompletion?: unknown;
-      };
-      let inputPayload: unknown = payload;
-
-      if (!Array.isArray(body.jobs)) {
-        const crawlQuery =
-          typeof body.crawlQuery === "string" && body.crawlQuery.trim().length > 0
-            ? body.crawlQuery.trim()
-            : defaultCrawlQuery;
-        if (!crawlQuery) {
-          throw new Error(
-            "Request body must include jobs[] or set a non-empty defaultCrawlQuery."
-          );
-        }
-
-        const maxResults = typeof body.maxResults === "number" ? body.maxResults : undefined;
-        const waitForCompletion = body.waitForCompletion !== false;
-
-        if (!waitForCompletion) {
-          void (async () => {
-            try {
-              const crawledJobs = await crawler.crawlJobs({ crawlQuery, maxResults });
-              const { validJobs } = parseInsertRequest({ jobs: crawledJobs });
-              const records: JobRecord[] = validJobs.map((job) => ({
-                ...job,
-                jobId: idGenerator()
-              }));
-
-              await repository.putJobs(records);
-            } catch (error) {
-              console.error("Async crawl job failed.", error);
-            }
-          })();
-
-          return success(202, {
-            accepted: true,
-            message: "Crawl started and will continue in the background."
-          });
-        }
-
-        const crawledJobs = await crawler.crawlJobs({ crawlQuery, maxResults });
-        inputPayload = { jobs: crawledJobs };
+      const crawledJobs = await crawler.crawlJobs({ crawlQuery: defaultCrawlQuery, maxResults });
+      if (crawledJobs.length === 0) {
+        return success(200, {
+          insertedCount: 0,
+          failed: []
+        });
       }
 
-      const { validJobs, failed } = parseInsertRequest(inputPayload);
+      const { validJobs, failed } = parseInsertRequest({ jobs: crawledJobs });
 
       const records: JobRecord[] = validJobs.map((job) => ({
         ...job,
@@ -145,7 +96,7 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
         failed
       });
     } catch (error) {
-      return failure(400, "INVALID_REQUEST", (error as Error).message);
+      return failure(500, "INSERT_FAILED", (error as Error).message);
     }
   };
 }

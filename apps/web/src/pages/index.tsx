@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { JobRecord, JobSearchFilters } from "@jobs-crawler/shared";
-import { fetchJobsFromApi, insertJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
+import { fetchJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
 
 const PAGE_SIZE = 20;
 
@@ -10,9 +10,6 @@ type PageProps = {
   initialFilters: Partial<JobSearchFilters>;
   errorMessage?: string;
   isLoading?: boolean;
-  isInserting: boolean;
-  insertStatusMessage?: string;
-  onManualInsert: () => void;
   currentPage: number;
   totalPages: number;
   onPreviousPage: () => void;
@@ -40,6 +37,11 @@ function toDateInputValue(value?: string): string {
   return value.length >= 10 ? value.slice(0, 10) : value;
 }
 
+function hasSalaryValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 && normalized !== "not specified";
+}
+
 function parseFiltersFromLocation(): Partial<JobSearchFilters> {
   const params = new URLSearchParams(window.location.search);
 
@@ -59,9 +61,6 @@ export function JobsPageView({
   initialFilters,
   errorMessage,
   isLoading,
-  isInserting,
-  insertStatusMessage,
-  onManualInsert,
   currentPage,
   totalPages,
   onPreviousPage,
@@ -71,18 +70,18 @@ export function JobsPageView({
   const endIndex = jobs.length === 0 ? 0 : startIndex + jobs.length - 1;
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
+    <main className="mx-auto min-h-screen w-full max-w-6xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <section className="rounded-2xl bg-white/90 p-4 shadow-lg shadow-slate-200/60 sm:p-6">
         <h1 className="text-3xl font-semibold text-slate-900">Jobs Crawler</h1>
         <p className="mt-2 text-sm text-slate-600">
           Browse jobs pulled from DynamoDB through API Gateway + Lambda.
         </p>
 
-        <form method="GET" className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <form method="GET" className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 sm:mt-6 sm:gap-4">
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Job title
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="jobTitle"
               defaultValue={initialFilters.jobTitle ?? ""}
               placeholder="e.g. Backend Engineer"
@@ -92,7 +91,7 @@ export function JobsPageView({
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Location
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="location"
               defaultValue={initialFilters.location ?? ""}
               placeholder="e.g. Bangkok"
@@ -102,7 +101,7 @@ export function JobsPageView({
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Company
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="companyName"
               defaultValue={initialFilters.companyName ?? ""}
               placeholder="e.g. Acme"
@@ -112,7 +111,7 @@ export function JobsPageView({
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Referring URL
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="referringURL"
               defaultValue={initialFilters.referringURL ?? ""}
               placeholder="jobs.example.com"
@@ -122,7 +121,7 @@ export function JobsPageView({
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Remote status
             <select
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="remoteStatus"
               defaultValue={initialFilters.remoteStatus ?? ""}
             >
@@ -137,7 +136,7 @@ export function JobsPageView({
             Date posted
             <input
               type="date"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:px-3 sm:py-2"
               name="datePosted"
               defaultValue={toDateInputValue(initialFilters.datePosted)}
             />
@@ -146,7 +145,7 @@ export function JobsPageView({
           <div className="md:col-span-2 lg:col-span-3 flex items-center gap-3">
             <button
               type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+              className="rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 sm:px-4 sm:py-2"
             >
               Apply filters
             </button>
@@ -157,25 +156,7 @@ export function JobsPageView({
         </form>
       </section>
 
-      <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
-        <h2 className="text-lg font-semibold text-slate-900">Manual jobs crawl</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Trigger Gemini crawl and insert jobs into DynamoDB using the query configured in Lambda.
-        </p>
-        <div className="mt-3 flex flex-col gap-3 md:flex-row">
-          <button
-            type="button"
-            onClick={onManualInsert}
-            disabled={isInserting}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isInserting ? "Inserting..." : "Insert jobs manually"}
-          </button>
-        </div>
-        {insertStatusMessage ? <p className="mt-2 text-sm text-slate-700">{insertStatusMessage}</p> : null}
-      </section>
-
-      <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
+      <section className="mt-6 rounded-2xl bg-white/90 p-4 shadow-lg shadow-slate-200/60 sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">Results</h2>
           <p className="text-sm text-slate-600">
@@ -191,11 +172,14 @@ export function JobsPageView({
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {jobs.map((job) => (
-              <article key={`${job.jobId}-${job.datePosted}`} className="rounded-xl border border-slate-200 bg-white p-4">
+              <article key={`${job.jobId}-${job.datePosted}`} className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
                 <h3 className="text-lg font-semibold text-slate-900">{job.jobTitle}</h3>
                 <p className="mt-1 text-sm text-slate-600">
                   {job.companyName} - {job.location} - {job.remoteStatus}
                 </p>
+                {hasSalaryValue(job.salary) ? (
+                  <p className="mt-1 text-sm text-slate-700">Salary: {job.salary}</p>
+                ) : null}
                 <p className="mt-1 text-xs text-slate-500">Posted: {formatDateLabel(job.datePosted)}</p>
                 <p className="mt-3 text-sm text-slate-700">{job.jobDescription}</p>
                 <a
@@ -245,8 +229,6 @@ export default function JobsPage() {
   const [initialFilters, setInitialFilters] = useState<Partial<JobSearchFilters>>({});
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
-  const [insertStatusMessage, setInsertStatusMessage] = useState<string | undefined>();
-  const [isInserting, setIsInserting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   async function loadJobs() {
@@ -282,29 +264,6 @@ export default function JobsPage() {
     void loadJobs();
   }, []);
 
-  async function handleManualInsert() {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
-    if (!apiBaseUrl) {
-      setInsertStatusMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
-      return;
-    }
-
-    setIsInserting(true);
-    setInsertStatusMessage(undefined);
-    setIsLoading(true);
-
-    try {
-      const result = await insertJobsFromApi({ apiBaseUrl });
-      setInsertStatusMessage(`Inserted ${result.insertedCount} jobs. ${result.failed.length} failed.`);
-      await loadJobs();
-    } catch (error) {
-      setInsertStatusMessage((error as Error).message);
-    } finally {
-      setIsInserting(false);
-      setIsLoading(false);
-    }
-  }
-
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const paginatedJobs = jobs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -315,15 +274,10 @@ export default function JobsPage() {
       initialFilters={initialFilters}
       errorMessage={errorMessage}
       isLoading={isLoading}
-      isInserting={isInserting}
-      insertStatusMessage={insertStatusMessage}
       currentPage={currentPage}
       totalPages={totalPages}
       onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
       onNextPage={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-      onManualInsert={() => {
-        void handleManualInsert();
-      }}
     />
   );
 }

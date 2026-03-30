@@ -26,12 +26,10 @@ describe("JobsPageView", () => {
         jobs={sampleJobs}
         totalCount={1}
         initialFilters={{}}
-        isInserting={false}
         currentPage={1}
         totalPages={1}
         onPreviousPage={() => {}}
         onNextPage={() => {}}
-        onManualInsert={() => {}}
       />
     );
 
@@ -41,7 +39,8 @@ describe("JobsPageView", () => {
     expect(screen.getByLabelText("Company")).toBeInTheDocument();
     expect(screen.getByLabelText("Referring URL")).toBeInTheDocument();
     expect(screen.getByLabelText("Date posted")) .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Insert jobs manually" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Insert jobs manually" })).not.toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Salary: $100k")).toBeInTheDocument();
   });
 });

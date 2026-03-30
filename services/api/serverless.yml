@@ -45,21 +45,8 @@ functions:
     handler: src/handlers/insertJobs.handler
     timeout: 180
     events:
-      - http:
-          path: jobs
-          method: post
-          cors:
-            origin: ${env:CORS_ALLOW_ORIGIN, 'https://jobs-crawler.andithang.org'}
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Amz-Security-Token
-          private: false
       - schedule:
           rate: cron(0 1 * * ? *) # 08:00 GMT+7
-          input:
-            body: '{"waitForCompletion":false}'
   searchJobs:
     handler: src/handlers/searchJobs.handler
     events:

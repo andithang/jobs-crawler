@@ -4,7 +4,7 @@ A statically exported Next.js job board (Tailwind CSS) backed by AWS API Gateway
 
 ## Overview
 
-Jobs are stored in DynamoDB and served through API Gateway-protected Lambda functions. The web app is exported as static files for GitHub Pages and fetches jobs client-side from the public `GET /jobs` endpoint.
+Jobs are stored in DynamoDB and served through API Gateway Lambda functions. The web app is exported as static files for GitHub Pages and fetches jobs client-side from the public `GET /jobs` endpoint.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Data flow:
 1. User loads static site from GitHub Pages.
 2. Browser calls API Gateway `GET /jobs` (public read endpoint).
 3. Lambda queries DynamoDB `JobListings` and returns results.
-4. Protected `POST /jobs` remains API-key authenticated for inserts.
+4. EventBridge runs daily schedules for `insertJobs` and `cleanupJobs`.
 
 ## Project Structure
 
@@ -79,50 +79,14 @@ npm run dev:web
 | `AWS_REGION` | Yes | API | AWS region for Lambda + DynamoDB |
 | `JOBS_TABLE_NAME` | Yes | API | DynamoDB table name (default `JobListings`) |
 | `CORS_ALLOW_ORIGIN` | Yes | API | Allowed browser origin for CORS (set to custom domain) |
-| `GEMINI_API_KEY` | Yes (for crawl mode) | API | Gemini API key used by `POST /jobs` crawl mode (`gemini-2.5-flash-lite`) |
+| `GEMINI_API_KEY` | Yes (for scheduled insert) | API | Gemini API key used by scheduled `insertJobs` crawl mode (`gemini-2.5-flash-lite`) |
 | `AWS_ACCESS_KEY_ID` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SECRET_ACCESS_KEY` | Yes (for local/deploy) | API | AWS auth for local CLI/deploy |
 | `AWS_SESSION_TOKEN` | Optional | API | Temporary credentials support |
 | `SERVERLESS_ACCESS_KEY` | Yes (deploy) | API | Serverless Framework v4 authentication |
-| `NEXT_PUBLIC_JOBS_API_KEY` | Yes (manual insert button) | Web | API key sent from browser for manual `POST /jobs` trigger |
-
 ## API Contract
 
 Base path: `/<stage>/jobs`
-
-### `POST /jobs`
-
-- Auth: `x-api-key` required.
-- Body (direct mode):
-
-```json
-{
-  "jobs": [
-    {
-      "jobTitle": "Backend Engineer",
-      "companyName": "Acme",
-      "location": "Bangkok",
-      "referringURL": "https://jobs.example.com/1",
-      "jobDescription": "Build APIs",
-      "salary": "$100k",
-      "benefits": "Health",
-      "remoteStatus": "remote",
-      "datePosted": "2026-03-20T00:00:00.000Z"
-    }
-  ]
-}
-```
-
-- Body (crawl mode):
-
-```json
-{
-  "crawlQuery": "backend engineer remote united states",
-  "maxResults": 20
-}
-```
-
-- Response includes `insertedCount` and `failed` entries by index.
 
 ### `GET /jobs`
 
@@ -136,7 +100,7 @@ Base path: `/<stage>/jobs`
 
 ## Deployment
 
-Deploy API (creates DynamoDB, API Gateway, Lambdas, usage plan, and API key):
+Deploy API (creates DynamoDB, API Gateway, and scheduled Lambdas):
 
 ```bash
 npm run deploy -w @jobs-crawler/api
@@ -196,9 +160,8 @@ Configure the IAM role trust policy for GitHub OIDC with:
 
 ## Security and Rate Limiting
 
-- `POST /jobs` remains private and requires API key.
-- Usage plan quota is configured to `10 requests/day`.
 - `GET /jobs` is public read-only for static web access.
+- Inserts and cleanup are schedule-driven via EventBridge.
 
 ## Docs Index
 

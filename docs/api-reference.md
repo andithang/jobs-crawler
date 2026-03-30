@@ -6,59 +6,10 @@
 
 ## Authentication
 
-- `POST /jobs`: requires `x-api-key`
 - `GET /jobs`: public read endpoint (no API key)
+- Job insertion is schedule-only via EventBridge (`insertJobs` Lambda), not exposed as HTTP.
 
 ## Endpoints
-
-### POST `/jobs`
-
-Insert jobs into DynamoDB.
-
-The endpoint supports two modes:
-- **Direct mode**: submit a `jobs` array.
-- **Crawl mode**: submit a `crawlQuery` string and Lambda will use Gemini `gemini-2.5-flash-lite` + `web_search` to crawl and format jobs before inserting.
-
-Request body:
-
-```json
-{
-  "jobs": [
-    {
-      "jobTitle": "Backend Engineer",
-      "companyName": "Acme",
-      "location": "Bangkok",
-      "referringURL": "https://jobs.example.com/1",
-      "jobDescription": "Build APIs",
-      "salary": "$100k",
-      "benefits": "Health",
-      "remoteStatus": "remote",
-      "datePosted": "2026-03-20T00:00:00.000Z"
-    }
-  ]
-}
-```
-
-Response (`200`):
-
-```json
-{
-  "success": true,
-  "data": {
-    "insertedCount": 1,
-    "failed": []
-  }
-}
-```
-
-Crawl-mode request example:
-
-```json
-{
-  "crawlQuery": "backend engineer remote united states",
-  "maxResults": 20
-}
-```
 
 ### GET `/jobs`
 
@@ -96,8 +47,9 @@ Response (`200`):
 {
   "success": false,
   "error": {
-    "code": "INVALID_REQUEST",
-    "message": "Request body must include jobs[] or set a non-empty defaultCrawlQuery."
+    "code": "SEARCH_FAILED",
+    "message": "..."
   }
 }
 ```
+
