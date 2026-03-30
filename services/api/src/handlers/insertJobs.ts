@@ -11,6 +11,7 @@ interface Dependencies {
   repository: JobRepository;
   idGenerator: () => string;
   crawler: JobCrawler;
+  defaultCrawlQuery?: string;
 }
 
 function parseBody(body: string | null): unknown {
@@ -29,6 +30,7 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
   const repository = deps?.repository ?? new DynamoDbJobRepository();
   const idGenerator = deps?.idGenerator ?? uuidv4;
   const crawler = deps?.crawler ?? new GeminiJobCrawler();
+  const defaultCrawlQuery = deps?.defaultCrawlQuery ?? process.env.DEFAULT_CRAWL_QUERY?.trim() ?? "";
 
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
@@ -37,9 +39,11 @@ export function buildInsertJobsHandler(deps?: Partial<Dependencies>) {
       let inputPayload: unknown = payload;
 
       if (!Array.isArray(body.jobs)) {
-        const crawlQuery = typeof body.crawlQuery === "string" ? body.crawlQuery.trim() : "";
+        const crawlQuery = typeof body.crawlQuery === "string" ? body.crawlQuery.trim() : defaultCrawlQuery;
         if (!crawlQuery) {
-          throw new Error("Request body must include either jobs[] or a non-empty crawlQuery.");
+          throw new Error(
+            "Request body must include jobs[] or set a non-empty DEFAULT_CRAWL_QUERY environment variable."
+          );
         }
 
         const maxResults = typeof body.maxResults === "number" ? body.maxResults : undefined;

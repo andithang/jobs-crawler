@@ -8,10 +8,8 @@ type PageProps = {
   initialFilters: Partial<JobSearchFilters>;
   errorMessage?: string;
   isLoading?: boolean;
-  crawlQuery: string;
   isInserting: boolean;
   insertStatusMessage?: string;
-  onCrawlQueryChange: (value: string) => void;
   onManualInsert: () => void;
 };
 
@@ -55,10 +53,8 @@ export function JobsPageView({
   initialFilters,
   errorMessage,
   isLoading,
-  crawlQuery,
   isInserting,
   insertStatusMessage,
-  onCrawlQueryChange,
   onManualInsert
 }: PageProps) {
   return (
@@ -150,14 +146,10 @@ export function JobsPageView({
 
       <section className="mt-6 rounded-2xl bg-white/90 p-6 shadow-lg shadow-slate-200/60">
         <h2 className="text-lg font-semibold text-slate-900">Manual jobs crawl</h2>
-        <p className="mt-1 text-sm text-slate-600">Trigger Gemini crawl and insert jobs into DynamoDB.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Trigger Gemini crawl and insert jobs into DynamoDB using the query configured in Lambda.
+        </p>
         <div className="mt-3 flex flex-col gap-3 md:flex-row">
-          <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            value={crawlQuery}
-            onChange={(event) => onCrawlQueryChange(event.target.value)}
-            placeholder="e.g. backend engineer remote united states"
-          />
           <button
             type="button"
             onClick={onManualInsert}
@@ -214,7 +206,6 @@ export default function JobsPage() {
   const [initialFilters, setInitialFilters] = useState<Partial<JobSearchFilters>>({});
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
-  const [crawlQuery, setCrawlQuery] = useState("software engineer remote united states");
   const [insertStatusMessage, setInsertStatusMessage] = useState<string | undefined>();
   const [isInserting, setIsInserting] = useState(false);
 
@@ -251,13 +242,8 @@ export default function JobsPage() {
 
   async function handleManualInsert() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
-    const apiKey = process.env.NEXT_PUBLIC_JOBS_API_KEY;
     if (!apiBaseUrl) {
       setInsertStatusMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
-      return;
-    }
-    if (!apiKey) {
-      setInsertStatusMessage("Missing NEXT_PUBLIC_JOBS_API_KEY.");
       return;
     }
 
@@ -266,7 +252,7 @@ export default function JobsPage() {
     setIsLoading(true);
 
     try {
-      const result = await insertJobsFromApi(crawlQuery, { apiBaseUrl, apiKey });
+      const result = await insertJobsFromApi({ apiBaseUrl });
       setInsertStatusMessage(`Inserted ${result.insertedCount} jobs. ${result.failed.length} failed.`);
       await loadJobs();
     } catch (error) {
@@ -284,10 +270,8 @@ export default function JobsPage() {
       initialFilters={initialFilters}
       errorMessage={errorMessage}
       isLoading={isLoading}
-      crawlQuery={crawlQuery}
       isInserting={isInserting}
       insertStatusMessage={insertStatusMessage}
-      onCrawlQueryChange={setCrawlQuery}
       onManualInsert={() => {
         void handleManualInsert();
       }}

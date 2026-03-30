@@ -51,7 +51,7 @@ describe("fetchJobsFromApi", () => {
 });
 
 describe("insertJobsFromApi", () => {
-  it("calls backend with x-api-key and crawlQuery payload", async () => {
+  it("calls backend without exposing API keys or crawl query", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -63,9 +63,8 @@ describe("insertJobsFromApi", () => {
       })
     });
 
-    const result = await insertJobsFromApi("backend engineer remote", {
+    const result = await insertJobsFromApi({
       apiBaseUrl: "https://api.example.com/dev",
-      apiKey: "secret-key",
       fetchImpl: fetchMock
     });
 
@@ -74,9 +73,9 @@ describe("insertJobsFromApi", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "content-type": "application/json",
-          "x-api-key": "secret-key"
-        })
+          "content-type": "application/json"
+        }),
+        body: JSON.stringify({})
       })
     );
     expect(result.insertedCount).toBe(3);

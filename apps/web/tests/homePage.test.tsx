@@ -26,9 +26,7 @@ describe("JobsPageView", () => {
         jobs={sampleJobs}
         totalCount={1}
         initialFilters={{}}
-        crawlQuery="software engineer"
         isInserting={false}
-        onCrawlQueryChange={() => {}}
         onManualInsert={() => {}}
       />
     );
