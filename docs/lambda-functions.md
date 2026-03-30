@@ -5,6 +5,8 @@
 - Trigger: `POST /jobs`
 - Responsibilities:
   - Parse request JSON.
+  - Accept direct `jobs[]` payload or trigger internal crawl mode when `jobs[]` is omitted.
+  - In crawl mode, call Gemini `gemini-2.5-flash-lite` with Google Search grounding and require JSON output.
   - Validate each job payload.
   - Normalize `remoteStatus` to lowercase enum.
   - Generate `jobId`.

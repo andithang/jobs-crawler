@@ -49,4 +49,3 @@ describe("fetchJobsFromApi", () => {
     expect(result.items).toEqual([]);
   });
 });
-

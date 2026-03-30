@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { JobRecord, JobSearchFilters } from "@jobs-crawler/shared";
 import { fetchJobsFromApi, normalizeFilterInput } from "../lib/jobsClient";
 
@@ -183,34 +183,34 @@ export default function JobsPage() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadJobs() {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
-      const filters = parseFiltersFromLocation();
-      setInitialFilters(filters);
+  async function loadJobs() {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_JOBS_API_BASE_URL;
+    const filters = parseFiltersFromLocation();
+    setInitialFilters(filters);
 
-      if (!apiBaseUrl) {
-        setJobs([]);
-        setTotalCount(0);
-        setErrorMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const result = await fetchJobsFromApi(filters, { apiBaseUrl });
-        setJobs(result.items);
-        setTotalCount(result.totalCount);
-        setErrorMessage(undefined);
-      } catch (error) {
-        setJobs([]);
-        setTotalCount(0);
-        setErrorMessage((error as Error).message);
-      } finally {
-        setIsLoading(false);
-      }
+    if (!apiBaseUrl) {
+      setJobs([]);
+      setTotalCount(0);
+      setErrorMessage("Missing NEXT_PUBLIC_JOBS_API_BASE_URL.");
+      setIsLoading(false);
+      return;
     }
 
+    try {
+      const result = await fetchJobsFromApi(filters, { apiBaseUrl });
+      setJobs(result.items);
+      setTotalCount(result.totalCount);
+      setErrorMessage(undefined);
+    } catch (error) {
+      setJobs([]);
+      setTotalCount(0);
+      setErrorMessage((error as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
     void loadJobs();
   }, []);
 

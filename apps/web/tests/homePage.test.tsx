@@ -28,8 +28,7 @@ describe("JobsPageView", () => {
     expect(screen.getByLabelText("Location")).toBeInTheDocument();
     expect(screen.getByLabelText("Company")).toBeInTheDocument();
     expect(screen.getByLabelText("Referring URL")).toBeInTheDocument();
-    expect(screen.getByLabelText("Date posted")) .toBeInTheDocument();
+    expect(screen.getByLabelText("Date posted")).toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
   });
 });
-

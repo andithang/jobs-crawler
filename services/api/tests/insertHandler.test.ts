@@ -50,5 +50,42 @@ describe("POST /jobs handler", () => {
     expect(inserted).toHaveLength(1);
     expect(inserted[0]?.jobId).toBe("generated-id");
   });
-});
 
+  it("crawls jobs with Gemini when jobs[] is not provided", async () => {
+    const repository = new InMemoryJobRepository();
+
+    const handler = buildInsertJobsHandler({
+      repository,
+      idGenerator: () => "crawled-id",
+      crawler: {
+        crawlJobs: async () => [
+          {
+            jobTitle: "ML Engineer",
+            companyName: "Example Co",
+            location: "United States",
+            referringURL: "https://jobs.example.com/ml-1",
+            jobDescription: "Work on LLM pipelines.",
+            salary: "Not specified",
+            benefits: "Not specified",
+            remoteStatus: "remote",
+            datePosted: "2026-03-20T00:00:00.000Z"
+          }
+        ]
+      }
+    });
+
+    const response = await handler({
+      body: JSON.stringify({
+        maxResults: 5
+      })
+    } as never);
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { data: { insertedCount: number } };
+    expect(body.data.insertedCount).toBe(1);
+
+    const inserted = await repository.getAllJobs();
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.jobId).toBe("crawled-id");
+  });
+});
