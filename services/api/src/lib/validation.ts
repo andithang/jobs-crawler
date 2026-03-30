@@ -30,7 +30,7 @@ function trimString(value: unknown): string | undefined {
 export function parseInsertRequest(payload: unknown): { validJobs: JobInput[]; failed: FailedInsert[] } {
   const parsed = z.object({ jobs: z.array(z.unknown()).min(1) }).safeParse(payload);
   if (!parsed.success) {
-    throw new Error("Request body must include a non-empty jobs array.");
+    throw new Error("Request body must include jobs[] or set a non-empty defaultCrawlQuery.");
   }
 
   const validJobs: JobInput[] = [];

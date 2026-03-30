@@ -97,7 +97,7 @@ Response (`200`):
   "success": false,
   "error": {
     "code": "INVALID_REQUEST",
-    "message": "Request body must include a non-empty jobs array."
+    "message": "Request body must include jobs[] or set a non-empty defaultCrawlQuery."
   }
 }
 ```
