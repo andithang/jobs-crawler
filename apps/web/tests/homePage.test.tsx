@@ -30,6 +30,8 @@ describe("JobsPageView", () => {
         totalPages={1}
         onPreviousPage={() => {}}
         onNextPage={() => {}}
+        theme="light"
+        onToggleTheme={() => {}}
       />
     );
 
@@ -38,7 +40,7 @@ describe("JobsPageView", () => {
     expect(screen.getByLabelText("Location")).toBeInTheDocument();
     expect(screen.getByLabelText("Company")).toBeInTheDocument();
     expect(screen.getByLabelText("Referring URL")).toBeInTheDocument();
-    expect(screen.getByLabelText("Date posted")) .toBeInTheDocument();
+    expect(screen.getByLabelText("Date posted")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Insert jobs manually" })).not.toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
     expect(screen.getByText("Salary: $100k")).toBeInTheDocument();
